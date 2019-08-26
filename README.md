@@ -1,5 +1,5 @@
 ## Outlook Account Creator
-Build with:
+Built with:
 - Selenium
 - Requests
 - Faker
