@@ -1,0 +1,4 @@
+selenium
+Faker
+requests
+captcha_solver
