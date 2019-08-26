@@ -17,8 +17,8 @@ from selenium import webdriver
 from selenium.webdriver import ActionChains
 from selenium.webdriver.common.keys import Keys
 
+# 2Captcha API key here
 API_2_CAPTCHA = 'xxxxxxxxxxxxxxx'
-
 
 class OutlookAccountCreator:
     """ Class for creating outlook.com account
