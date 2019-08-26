@@ -9,6 +9,8 @@ import shutil
 import string
 from time import sleep
 from pprint import pprint
+from uuid import uuid4
+from uuid import uuid4
 
 import requests
 from faker import Faker
@@ -18,13 +20,13 @@ from selenium.webdriver import ActionChains
 from selenium.webdriver.common.keys import Keys
 
 # 2Captcha API key here
-API_2_CAPTCHA = 'xxxxxxxxxxxxxxx'
+API_2_CAPTCHA = 'xxxxxxxxx'
+
 
 class OutlookAccountCreator:
     """ Class for creating outlook.com account
     with randomly generated details"""
     URL = 'https://signup.live.com/signup'
-    IMG = 'captcha.jpg'
 
     def __init__(self):
         self.driver = webdriver.Chrome()
@@ -117,13 +119,19 @@ class OutlookAccountCreator:
         username = OutlookAccountCreator.__create_username(name)
         password = OutlookAccountCreator.__generate_password()
         first, last = name.split(' ', 1)
+
+        while True:
+            dob = fake_details.date_time()
+            if dob.year < 2000:
+                break
+
         return {
             "first_name": first,
             'last_name': last,
             'country': fake_details.country_code(representation="alpha-2"),
             'username': username,
             'password': password,
-            'dob': fake_details.date_time()
+            'dob': dob
         }
 
     @staticmethod
@@ -152,26 +160,29 @@ class OutlookAccountCreator:
         :param captcha_url: Captcha image url
         :return: string with captcha solution
         """
-        if OutlookAccountCreator.__download_image(captcha_url):
+        img_name = f'{uuid4()}.jpg'
+        if OutlookAccountCreator.__download_image(captcha_url, img_name):
             print('Solving Captcha...')
             solver = CaptchaSolver('2captcha', api_key=API_2_CAPTCHA)
-            raw_data = open(OutlookAccountCreator.IMG, 'rb').read()
-            solution = solver.solve_captcha(raw_data)
-            os.remove(OutlookAccountCreator.IMG)
+            raw_data = open(img_name, 'rb').read()
+            solution = solver.solve_captcha(raw_data, img_name)
+            os.remove(img_name)
             print(f"Captcha solved (solution: {solution})...")
             return solution
         print('Failed to download captcha image...')
 
     @staticmethod
-    def __download_image(image_url: str):
+    def __download_image(image_url: str, image_name: str):
         """
         Downloads captcha image
         :param image_url: string with url to image
+        :param image_name: string with image name
+        :return: boolean, True if successful False is failed
         """
         print('Downloading Captcha image...')
         r = requests.get(image_url, stream=True)
         if r.status_code == 200:
-            with open(OutlookAccountCreator.IMG, 'wb') as f:
+            with open(image_name, 'wb') as f:
                 r.raw.decode_content = True
                 shutil.copyfileobj(r.raw, f)
                 return True
