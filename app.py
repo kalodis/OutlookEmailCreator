@@ -7,10 +7,11 @@ import random
 import secrets
 import shutil
 import string
+import zipfile
 from time import sleep
 from pprint import pprint
 from uuid import uuid4
-from uuid import uuid4
+from random import choice
 
 import requests
 from faker import Faker
@@ -20,7 +21,33 @@ from selenium.webdriver import ActionChains
 from selenium.webdriver.common.keys import Keys
 
 # 2Captcha API key here
-API_2_CAPTCHA = 'xxxxxxxxx'
+from proxy_auth import manifest_json, background_js, plugin_file
+
+API_2_CAPTCHA = '6ed35827f9a7e40e1c1acb767f8aa5e3'
+
+
+class Proxies:
+    proxy_list = []
+
+    @staticmethod
+    def load_proxies(file_path: str):
+        """
+        Reads a text file with proxies
+        :param file_path: Path to proxy file with proxies in <user>:<pas>@<ip>:<port> format each on one line
+        """
+        lst = []
+        if file_path:
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as file:
+                    lst = [x for x in file.read().split('\n') if x.strip()]
+            else:
+                print('File: {}. Does not exist.'.format(file_path))
+        Proxies.proxy_list = lst
+
+    @staticmethod
+    def get_random_proxy():
+        """ Returns a random proxy """
+        return choice(Proxies.proxy_list)
 
 
 class OutlookAccountCreator:
@@ -28,8 +55,8 @@ class OutlookAccountCreator:
     with randomly generated details"""
     URL = 'https://signup.live.com/signup'
 
-    def __init__(self):
-        self.driver = webdriver.Chrome()
+    def __init__(self, use_proxy: bool = False):
+        self.driver = self.__open_browser(use_proxy)
 
     def create_account(self):
         """
@@ -84,10 +111,10 @@ class OutlookAccountCreator:
             print('Failed while creating account...\nRetrying...')
             return self.create_account()
 
-        if 'Phone number' in captcha_form.get_attribute('innerHTML'):
-            print('Form asks for phone number...\nTerminating...')
-            self.driver.quit()
-            exit()
+        # if 'Phone number' in captcha_form.get_attribute('innerHTML'):
+        #     print('Form asks for phone number...\nTerminating...')
+        #     self.driver.quit()
+        #     exit()
 
         captcha_image_url = captcha_form \
             .find_element_by_tag_name('img').get_attribute('src')
@@ -124,11 +151,16 @@ class OutlookAccountCreator:
             dob = fake_details.date_time()
             if dob.year < 2000:
                 break
-
+            if dob.month != 2:
+                break
+        while True:
+            country = fake_details.country_code(representation="alpha-2")
+            if country != "GB":
+                break
         return {
             "first_name": first,
             'last_name': last,
-            'country': fake_details.country_code(representation="alpha-2"),
+            'country': country,
             'username': username,
             'password': password,
             'dob': dob
@@ -165,7 +197,7 @@ class OutlookAccountCreator:
             print('Solving Captcha...')
             solver = CaptchaSolver('2captcha', api_key=API_2_CAPTCHA)
             raw_data = open(img_name, 'rb').read()
-            solution = solver.solve_captcha(raw_data, img_name)
+            solution = solver.solve_captcha(raw_data)
             os.remove(img_name)
             print(f"Captcha solved (solution: {solution})...")
             return solution
@@ -189,6 +221,29 @@ class OutlookAccountCreator:
         print('Captcha image download failed', image_url)
         return False
 
+    @staticmethod
+    def __open_browser(use_proxy: bool = False):
+        # TODO: add user agent
+        chrome_options = webdriver.ChromeOptions()
+        if use_proxy:
+            random_proxy = Proxies.get_random_proxy()
+            # Parse Proxy
+            auth, ip_port = random_proxy.split('@')
+            user, pwd = auth.split(':')
+            ip, port = ip_port.split(':')
 
-account_creator = OutlookAccountCreator()
-account_creator.create_account()
+            with zipfile.ZipFile(plugin_file, 'w') as zp:
+                zp.writestr("manifest.json", manifest_json)
+                zp.writestr("background.js", background_js % (ip, port, user, pwd))
+            chrome_options.add_extension(plugin_file)
+
+        return webdriver.Chrome(chrome_options=chrome_options)
+
+
+if __name__ == '__main__':
+    # Load proxies from file
+    Proxies.load_proxies('proxies.txt')
+    # Initialize account creator class
+    account_creator = OutlookAccountCreator(use_proxy=True)
+    # Run account creator
+    account_creator.create_account()
